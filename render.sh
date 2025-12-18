@@ -1,47 +1,55 @@
-#!/bin/zsh
+#!/bin/bash
 
 set -euo pipefail
 
-SCRIPT_DIR=${0:A:h}
+SCRIPT_PATH="$0"
+if [ "${SCRIPT_PATH%/*}" != "$SCRIPT_PATH" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+else
+    SCRIPT_DIR="$PWD"
+fi
 cd "$SCRIPT_DIR"
 
-if (( $# < 1 )); then
+if [ $# -lt 1 ]; then
 	echo "Usage: $0 <input_markdown> [output_html]" >&2
 	exit 1
 fi
 
-INPUT_MD=${1:A}
-INPUT_FILENAME=${INPUT_MD:t}
+INPUT_MD_RAW=$1
+INPUT_MD="$(cd "$(dirname "$INPUT_MD_RAW")" && pwd)/$(basename "$INPUT_MD_RAW")"
+INPUT_FILENAME=$(basename "$INPUT_MD")
 INPUT_STEM=${INPUT_FILENAME%.*}
-if [[ -z "$INPUT_STEM" ]]; then
+if [ -z "$INPUT_STEM" ]; then
 	INPUT_STEM="$INPUT_FILENAME"
 fi
 
-if (( $# >= 2 )); then
+if [ $# -ge 2 ]; then
 	OUTPUT_HTML_RAW=$2
 else
 	OUTPUT_HTML_RAW="output/${INPUT_STEM}.html"
 fi
-OUTPUT_HTML=${OUTPUT_HTML_RAW:A}
+OUTPUT_HTML="$(cd "$(dirname "$OUTPUT_HTML_RAW")" && pwd)/$(basename "$OUTPUT_HTML_RAW")"
+
 
 mkdir -p "$(dirname "$OUTPUT_HTML")"
 mkdir -p output/media
 
-pushd output > /dev/null
-cp "../render/github-markdown.css" ./media/github-markdown.css
-cp "../render/before.html" ./media/before.html
-cp "../render/after.html" ./media/after.html
-pandoc "$INPUT_MD" \
-	--lua-filter=../render/diagram.lua \
-	--extract-media=./media \
-	-f gfm -t html5 -s \
-	--css=./media/github-markdown.css \
-	--include-before-body=./media/before.html \
-	--include-after-body=./media/after.html \
-    --embed-resources \
-	-o "$OUTPUT_HTML"
+(
+	cd output
+	cp "../render/github-markdown.css" ./media/github-markdown.css
+	cp "../render/before.html" ./media/before.html
+	cp "../render/after.html" ./media/after.html
+	pandoc "$INPUT_MD" \
+		--lua-filter=../render/diagram.lua \
+		--extract-media=./media \
+		-f gfm -t html5 -s \
+		--css=./media/github-markdown.css \
+		--include-before-body=./media/before.html \
+		--include-after-body=./media/after.html \
+	    --embed-resources \
+		-o "$OUTPUT_HTML"
 
-python3 <<PY
+	python3 <<PY
 from pathlib import Path
 
 html_path = Path("$OUTPUT_HTML")
@@ -85,6 +93,6 @@ if img_style_block not in html:
 
 html_path.write_text(html)
 PY
-popd > /dev/null
+)
 
 open "$OUTPUT_HTML"
